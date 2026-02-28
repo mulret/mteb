@@ -33,6 +33,8 @@ class ColPaliEngineWrapper(AbsEncoder):
         processor_class: type,
         revision: str | None = None,
         device: str | None = None,
+        maxsim_batch_size: int | None = None,
+        maxsim_show_progress_bar: bool = False,
         **kwargs,
     ):
         requires_image_dependencies()
@@ -41,6 +43,8 @@ class ColPaliEngineWrapper(AbsEncoder):
         )
 
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.maxsim_batch_size = maxsim_batch_size
+        self.maxsim_show_progress_bar = maxsim_show_progress_bar
 
         # Load model
         self.mdl = model_class.from_pretrained(
@@ -162,7 +166,13 @@ class ColPaliEngineWrapper(AbsEncoder):
         return scores.softmax(dim=-1)
 
     def similarity(self, a, b):
-        return self.processor.score(a, b, device=self.device)
+        score_kwargs: dict[str, Any] = {
+            "device": self.device,
+            "show_progress_bar": self.maxsim_show_progress_bar,
+        }
+        if self.maxsim_batch_size is not None:
+            score_kwargs["batch_size"] = self.maxsim_batch_size
+        return self.processor.score(a, b, **score_kwargs)
 
 
 class ColPaliWrapper(ColPaliEngineWrapper):
