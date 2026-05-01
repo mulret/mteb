@@ -79,8 +79,7 @@ class SearchEncoderWrapper:
                     corpus,
                     task_metadata=task_metadata,
                     prompt_type=PromptType.document,
-                    num_proc=num_proc,
-                    **encode_kwargs,
+                    **{"num_proc": num_proc, **encode_kwargs},
                 ),
                 task_metadata=task_metadata,
                 hf_split=hf_split,
@@ -126,8 +125,7 @@ class SearchEncoderWrapper:
             queries,
             task_metadata=task_metadata,
             prompt_type=PromptType.query,
-            num_proc=num_proc,
-            **encode_kwargs,
+            **{"num_proc": num_proc, **encode_kwargs},
         )
 
         query_embeddings = self.model.encode(
@@ -559,15 +557,13 @@ class SearchCrossEncoderWrapper:
             Dataset.from_list(total_queries),
             task_metadata=task_metadata,
             prompt_type=PromptType.document,
-            num_proc=num_proc,
-            **encode_kwargs,
+            **{"num_proc": num_proc, **encode_kwargs},
         )
         corpus_loader = create_dataloader(
             Dataset.from_list(total_docs),
             task_metadata=task_metadata,
             prompt_type=PromptType.document,
-            num_proc=num_proc,
-            **encode_kwargs,
+            **{"num_proc": num_proc, **encode_kwargs},
         )
         predictions = self.model.predict(
             inputs1=queries_loader,
