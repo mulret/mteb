@@ -28,10 +28,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_loader_options(
+    num_proc: int | None,
+    prefetch_factor: int | None,
+    pin_memory: bool,
+    persistent_workers: bool,
+) -> dict[str, Any]:
+    """Build DataLoader kwargs for worker / prefetch / memory settings.
+
+    PyTorch only accepts ``prefetch_factor`` and ``persistent_workers`` when
+    ``num_workers > 0``; passing them with 0 workers raises ``ValueError``.
+    """
+    num_workers = num_proc if num_proc is not None and num_proc > 1 else 0
+    options: dict[str, Any] = {
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+    }
+    if num_workers > 0:
+        if prefetch_factor is not None:
+            options["prefetch_factor"] = prefetch_factor
+        if persistent_workers:
+            options["persistent_workers"] = True
+    return options
+
+
 def _create_dataloader_from_texts(
     text: list[str],
     batch_size: int = 32,
     num_proc: int | None = None,
+    prefetch_factor: int | None = None,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
     **kwargs: Any,
 ) -> DataLoader[TextInput]:
     """Create a dataloader from a list of text.
@@ -40,6 +67,9 @@ def _create_dataloader_from_texts(
         text: A list of text to create a dataloader from.
         batch_size: Batch size for the dataloader.
         num_proc: Number of processes to use.
+        prefetch_factor: DataLoader prefetch factor (only used when num_proc > 1).
+        pin_memory: Whether to use pinned memory for faster H2D transfer.
+        persistent_workers: Whether to keep worker processes alive between epochs.
         kwargs: Not used, present catching extra arguments.
 
     Returns:
@@ -49,7 +79,9 @@ def _create_dataloader_from_texts(
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        num_workers=num_proc if num_proc is not None and num_proc > 1 else 0,
+        **_resolve_loader_options(
+            num_proc, prefetch_factor, pin_memory, persistent_workers
+        ),
     )
 
 
@@ -308,6 +340,9 @@ def create_dataloader(
     input_column: str | Sequence[str] | None = None,
     batch_size: int = 32,
     num_proc: int | None = None,
+    prefetch_factor: int | None = None,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
     **kwargs: Any,
 ) -> DataLoader[BatchedInput]:
     """Create a dataloader from a dataset.
@@ -323,6 +358,9 @@ def create_dataloader(
             If a Sequence, columns are assumed to already match modality names. If None, inferred from task metadata.
         batch_size: The batch size for the dataloader.
         num_proc: The number of processes to use for dataset processing.
+        prefetch_factor: DataLoader prefetch factor (only used when num_proc > 1).
+        pin_memory: Whether to use pinned memory for faster H2D transfer.
+        persistent_workers: Whether to keep worker processes alive between iterations.
         **kwargs: Additional arguments to pass to the dataloader creation functions.
 
     Returns:
@@ -339,6 +377,10 @@ def create_dataloader(
         return _create_dataloader_from_texts(
             dataset[_input_column],
             batch_size=batch_size,
+            num_proc=num_proc,
+            prefetch_factor=prefetch_factor,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
         )
 
     prepared = _prepare_dataset(
@@ -353,6 +395,8 @@ def create_dataloader(
         prepared,
         batch_size=batch_size,
         collate_fn=_custom_collate_fn,
-        num_workers=num_proc if num_proc is not None and num_proc > 1 else 0,
         shuffle=False,
+        **_resolve_loader_options(
+            num_proc, prefetch_factor, pin_memory, persistent_workers
+        ),
     )
